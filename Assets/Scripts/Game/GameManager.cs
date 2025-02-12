@@ -12,6 +12,7 @@ namespace Chess.Game
 
 		public event System.Action onPositionLoaded;
 		public enum PlayerType { Human, AI }
+		public enum GameType { PVP, PVB, BVB}
 
 		[Header("Start Position")]
 		public bool loadCustomPosition = false;
@@ -29,15 +30,16 @@ namespace Chess.Game
 		public float score;
 
 		[Header("Game State")]
-		public GameResult.EndResult gameResult;
+		public GameType gameType = GameType.PVP;
 		public bool boardUpdated = true;
 		public int colorToMove => board.CurrentGameState.ColorToMove ; // 0 white - 1 black
 		public PlayerType playerToMove => (colorToMove == 0) ? whitePlayerType: blackPlayerType; // PlayerType
+		public int promotionFlag = 0;
 
 		[Header("Interal stuff")]
 		public bool HumanPlaysWhite = true;
-		public bool VerseAI = false;
 		public Board board { get; set; }
+		public GameResult.EndResult gameResult => board.CurrentEndResult;
 		public BoardUI boardUI;
 		public OtherUI otherUI;
 		
@@ -67,7 +69,10 @@ namespace Chess.Game
 			// Update game if player selects move
 			if (player.MoveFound)
 			{
-				UpdateGame();
+				if (!player.selectedMoveIsPromotion || promotionFlag != 0)
+                    UpdateGame();
+				else
+					otherUI.SetPromotionUIActive();
 			}
 			else
 			{
@@ -79,9 +84,15 @@ namespace Chess.Game
 		{	
 			Player player = (colorToMove == 0) ? whitePlayer : blackPlayer;
 			Player opponent = (colorToMove == 0) ? blackPlayer : whitePlayer;
-			
+
+			if (player.selectedMoveIsPromotion)
+				player.SelectedMove = new Move(player.SelectedMove.StartSquare, player.SelectedMove.TargetSquare, (uint) promotionFlag);
+
 			board.MakeMove(player.SelectedMove, true);
-			boardUpdated = false;			
+			boardUpdated = false;
+
+			if (gameResult != GameResult.EndResult.InProgress)
+				GameOver();
 
 			// Updates the display of captured pieces
 			if (board.CurrentGameState.CapturedPieceType != 0)
@@ -99,6 +110,8 @@ namespace Chess.Game
 			player.MoveFound = false;
 			player.SelectedMove = null;
 			player.StartSearch = false;
+			player.selectedMoveIsPromotion = false;
+			promotionFlag = 0;
 
 			score = Evaluation.Evaluate(board);
 
@@ -115,10 +128,12 @@ namespace Chess.Game
 			// Generate the new board
 			board = new Board();
 
-			if (VerseAI)
+			if (gameType == GameType.PVP)
+				NewGame(PlayerType.Human, PlayerType.Human);
+			else if (gameType == GameType.PVB)
 				NewGame(humanPlaysWhite ? PlayerType.Human : PlayerType.AI, humanPlaysWhite ? PlayerType.AI : PlayerType.Human);
 			else
-				NewGame(PlayerType.Human, PlayerType.Human);
+				NewGame(PlayerType.AI, PlayerType.AI);
 		}
 
 		void NewGame(PlayerType whitePlayerType, PlayerType blackPlayerType)
@@ -152,8 +167,6 @@ namespace Chess.Game
 			
 			if (blackPlayerType == PlayerType.AI)
 				blackPlayer = new AIPlayer(board, 1);
-
-			gameResult = GameResult.EndResult.InProgress;
 		}
 
 		public void QuitGame()

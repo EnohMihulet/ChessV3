@@ -138,6 +138,8 @@ namespace Chess.Game
                     {
                         SelectedMove = chosenMove;
                         MoveFound = true;
+                        if (SelectedMove.IsPromotion)
+                            selectedMoveIsPromotion = true;
                     }
 
                     CancelPieceSelection();
@@ -176,6 +178,8 @@ namespace Chess.Game
                 {
                     SelectedMove = chosenMove;
                     MoveFound = true;
+                    if (SelectedMove.IsPromotion)
+                            selectedMoveIsPromotion = true;
  
                     CancelPieceSelection();
                 }

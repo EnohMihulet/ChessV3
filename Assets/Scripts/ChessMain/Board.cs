@@ -31,7 +31,6 @@ namespace Chess.Core
         public List<int> CapturedPieces;
 
         private Stack<GameState> GameStateHistory = new Stack<GameState>();
-        private FenUtility.PositionInfo StartPositionInfo;
 
 
         public Board()
@@ -177,9 +176,14 @@ namespace Chess.Core
             GameStateHistory.Push(newState);
 			CurrentGameState = newState;
 
+            // Add position to repetition history
             // Current result of the game
             if (recordMove)
+            {
+                RepetitionPositionHistory.Push(newZobristHash);
                 CurrentEndResult = GameResult.CurrentGameResult(this);
+            }
+                
         }   
 
         public void UnMakeMove(Move move, bool recordMove = false)
@@ -239,9 +243,13 @@ namespace Chess.Core
             GameStateHistory.Pop();
             CurrentGameState = GameStateHistory.Peek();
 
+            // Remove previous position from repetition history
             // Current result of the game
             if (recordMove)
+            {
+                RepetitionPositionHistory.Pop();
                 CurrentEndResult = GameResult.CurrentGameResult(this);
+            }
         }
 
         public bool IsKingInCheck(Board board, int kingColor)
@@ -265,7 +273,6 @@ namespace Chess.Core
 
 		public void LoadPosition(FenUtility.PositionInfo posInfo)
 		{
-			StartPositionInfo = posInfo;
 			Initialize();
 
 			// Load pieces into board array and piece lists

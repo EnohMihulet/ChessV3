@@ -14,7 +14,7 @@ namespace Chess.Core
         public const int MaxPieceMoves = 27;
 
         public enum PromotionMode { All, QueenOnly, QueenAndKnight }
-        public static PromotionMode PromotionsToGenerate { get; set; } = PromotionMode.QueenOnly;
+        public static PromotionMode PromotionsToGenerate { get; set; } = PromotionMode.All;
 
         public static Span<Move> GenerateAllMoves(Board board, bool onlyCaptures)
         {
@@ -101,13 +101,9 @@ namespace Chess.Core
                         bool isPromotion = (BoardHelper.RankIndex(targetSquare) == 0 || BoardHelper.RankIndex(targetSquare) == 7);
 
                         if (isPromotion) 
-                        {
-                            moves[moveCount++] = new Move(startSquare, targetSquare, Move.PromoteToQueenFlag);
-                            moves[moveCount++] = new Move(startSquare, targetSquare, Move.PromoteToKnightFlag);
-                            moves[moveCount++] = new Move(startSquare, targetSquare, Move.PromoteToRookFlag);
-                            moves[moveCount++] = new Move(startSquare, targetSquare, Move.PromoteToBishopFlag);
-                        }
-                        else moves[moveCount++] = new Move(startSquare, targetSquare, Move.NoFlag);
+                            GeneratePromotionMoves(startSquare, targetSquare, board, moves, ref moveCount);
+                        else 
+                            moves[moveCount++] = new Move(startSquare, targetSquare, Move.NoFlag);
                     }
                     
                     // Double push
@@ -137,13 +133,9 @@ namespace Chess.Core
                     bool isPromotion = (BoardHelper.RankIndex(targetSquare) == 0 || BoardHelper.RankIndex(targetSquare) == 7);
 
                     if (isPromotion)
-                    {
-                        moves[moveCount++] = new Move(startSquare, targetSquare, Move.PromoteToQueenFlag);
-                        moves[moveCount++] = new Move(startSquare, targetSquare, Move.PromoteToKnightFlag);
-                        moves[moveCount++] = new Move(startSquare, targetSquare, Move.PromoteToRookFlag);
-                        moves[moveCount++] = new Move(startSquare, targetSquare, Move.PromoteToBishopFlag);
-                    }
-                    else moves[moveCount++] = new Move(startSquare, targetSquare, Move.NoFlag);
+                        GeneratePromotionMoves(startSquare, targetSquare, board, moves, ref moveCount);
+                    else 
+                        moves[moveCount++] = new Move(startSquare, targetSquare, Move.NoFlag);
                 }
             }
             // Capture square is inbounds and does not wrap to the other side of the board
@@ -160,13 +152,9 @@ namespace Chess.Core
                     // Adds each possible promotion
                     // TODO change promotion based on settings (only queens, queen and knight, or all four)
                     if (isPromotion)
-                    {
-                        moves[moveCount++] = new Move(startSquare, targetSquare, Move.PromoteToQueenFlag);
-                        moves[moveCount++] = new Move(startSquare, targetSquare, Move.PromoteToKnightFlag);
-                        moves[moveCount++] = new Move(startSquare, targetSquare, Move.PromoteToRookFlag);
-                        moves[moveCount++] = new Move(startSquare, targetSquare, Move.PromoteToBishopFlag);
-                    }
-                    else moves[moveCount++] = new Move(startSquare, targetSquare, Move.NoFlag);
+                        GeneratePromotionMoves(startSquare, targetSquare, board, moves, ref moveCount);
+                    else 
+                        moves[moveCount++] = new Move(startSquare, targetSquare, Move.NoFlag);
                 }
             }
 
@@ -188,7 +176,26 @@ namespace Chess.Core
             }
         }
 
-        // TODO: public void GeneratePromotionMoves(startSquare, targetSquare, board)
+        public static void GeneratePromotionMoves(int startSquare, int targetSquare, Board board, Span<Move> moves, ref int moveCount)
+        {
+            // Adds the variations of pawn promotions depending on the promotion mode
+            // Always add queen promotion move
+            moves[moveCount++] = new Move(startSquare, targetSquare, Move.PromoteToQueenFlag);
+
+            // Add all four promotions
+            if (PromotionsToGenerate == PromotionMode.All)
+            {
+                moves[moveCount++] = new Move(startSquare, targetSquare, Move.PromoteToKnightFlag);
+                moves[moveCount++] = new Move(startSquare, targetSquare, Move.PromoteToRookFlag);
+                moves[moveCount++] = new Move(startSquare, targetSquare, Move.PromoteToBishopFlag);
+            }
+            // Add knight and queen promotion mode
+            else if (PromotionsToGenerate == PromotionMode.QueenAndKnight)
+            {
+                moves[moveCount++] = new Move(startSquare, targetSquare, Move.PromoteToKnightFlag);
+            }
+        }
+
 
         private static void GenerateKnightMoves(int square, Board board, Span<Move> moves, bool onlyCaptures, ref int moveCount)
         {   

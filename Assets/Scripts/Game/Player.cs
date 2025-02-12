@@ -11,6 +11,7 @@ namespace Chess.Game
     {
         public bool MoveFound = false;
         public Move SelectedMove;
+        public bool selectedMoveIsPromotion = false;
         public bool StartSearch = false;
         public Board board;
         public int PlayerColor;

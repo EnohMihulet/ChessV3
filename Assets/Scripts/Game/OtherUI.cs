@@ -9,12 +9,14 @@ using Unity.VisualScripting;
 using Unity.Mathematics;
 using TMPro;
 using System.Text.RegularExpressions;
+using UnityEngine.UI;
 
 namespace Chess.Game 
 {
     public class OtherUI : MonoBehaviour
     {
         public GameManager GameManager;
+		public BoardUI BoardUI;
 
         // Buttons
         public GameObject StartButton;
@@ -31,6 +33,20 @@ namespace Chess.Game
         // Total white/black captured material
 		public GameObject WMaterialCount; // White captured pieces value
 		public GameObject BMaterialCount; // Black captured pieces value
+
+		// Toggles
+		public Toggle PVPToggle; // Player vs player
+		public Toggle PVBToggle; // Player vs bot
+		public Toggle BVBToggle; // Bot vs bot
+
+		// Promotion UI
+		public GameObject PromotionPanel;
+		public GameObject WhitePromotionPieces;
+		public GameObject BlackPromotionPieces;
+
+		// Colors
+		public Color white = Color.white;
+		public Color gray = Color.gray;
 
         private bool HumanPlaysWhite;
         List<int> CapturedPieces;
@@ -200,6 +216,72 @@ namespace Chess.Game
 		{
 			BMaterialCount.SetActive(false);
 			WMaterialCount.SetActive(false);
+		}
+
+		public void TogglePressed()
+		{
+			GameManager.GameType type = GameManager.GameType.PVP;
+			PVPToggle.GetComponentInChildren<Image>().color = white;
+			PVBToggle.GetComponentInChildren<Image>().color = white;
+			BVBToggle.GetComponentInChildren<Image>().color = white;
+
+			if (PVPToggle.isOn)
+			{
+				type = GameManager.GameType.PVP;
+				PVPToggle.GetComponentInChildren<Image>().color = gray;
+			}
+			else if (PVBToggle.isOn)
+			{
+				type = GameManager.GameType.PVB;
+				PVBToggle.GetComponentInChildren<Image>().color = gray;
+			}
+			else if (BVBToggle.isOn)
+			{
+				type = GameManager.GameType.BVB;
+				BVBToggle.GetComponentInChildren<Image>().color = gray;
+			}
+			
+			GameManager.gameType = type;
+		}
+
+		public void SetPromotionUIActive()
+		{
+			PromotionPanel.SetActive(true);
+			if (GameManager.colorToMove == 0)
+				WhitePromotionPieces.SetActive(true);
+			else
+				BlackPromotionPieces.SetActive(true);
+
+			BoardUI.WhitesideBoardLabels.SetActive(false);
+			BoardUI.BlacksideBoardLabels.SetActive(false);
+		}
+
+
+		public void HidePromotionUI()
+		{
+			PromotionPanel.SetActive(false);
+			WhitePromotionPieces.SetActive(false);
+			BlackPromotionPieces.SetActive(false);
+
+			if (GameManager.HumanPlaysWhite)
+				BoardUI.WhitesideBoardLabels.SetActive(true);
+			else
+				BoardUI.BlacksideBoardLabels.SetActive(true);
+		}
+
+
+		public void PromotionButtonPressed(GameObject pressedPiece)
+		{
+			if (pressedPiece.tag == "queen")
+				GameManager.promotionFlag = Move.PromoteToQueenFlag;
+			else if (pressedPiece.tag == "knight")
+				GameManager.promotionFlag = Move.PromoteToKnightFlag;
+			else if (pressedPiece.tag == "bishop")
+				GameManager.promotionFlag = Move.PromoteToBishopFlag;
+			else
+				GameManager.promotionFlag = Move.PromoteToRookFlag;
+
+			HidePromotionUI();
 		}
     }
 }
