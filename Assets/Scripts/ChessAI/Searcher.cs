@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using Unity.Mathematics;
 
 namespace Chess.Core
@@ -8,10 +10,11 @@ namespace Chess.Core
 
         const int positiveInfinity = 9999999;
 		const int negativeInfinity = -positiveInfinity;
-        public const int StartDepth = 5;
+        public const int StartDepth = 6;
         public int CurrentDepth;
+        public static int[] PieceValues = { 0, 1, 3, 3, 5, 9, 100 };
 
-        public Searcher(int depth, bool isWhite)
+        public Searcher(int depth)
         {
             CurrentDepth = depth;
         }
@@ -44,14 +47,26 @@ namespace Chess.Core
                 score = negativeInfinity
             };
 
-            Span<Move> allMoves = MoveGenerator.GenerateAllMoves(board, false);
+            Span<Move> spanMoves = MoveGenerator.GenerateAllMoves(board, false);
+
+            Move[] allMoves = spanMoves.ToArray();
+            Array.Sort(allMoves, new MVVLVASorter(board));
+
             int count = allMoves.Length;
 
             if (count == 0) 
             {
                 // No moves: a checkmate or stalemate position.
-                // If this is a losing position for current player:
-
+                // If this is stalemate, then return 0
+                if (board.CurrentEndResult == GameResult.EndResult.Stalemate)
+                {
+                    return new MoveResult 
+                    {
+                        move = Move.NullMove,
+                        score = 0
+                    };
+                }
+                // If it is checkmate, return negative infinity
                 return new MoveResult 
                 {
                     move = Move.NullMove,
@@ -76,12 +91,12 @@ namespace Chess.Core
 
                 // Update alpha
                 alpha = Math.Max(alpha, bestResult.score);
-                if (alpha >= beta) {
+                if (alpha > beta) {
                     // Prune
                     break;
                 }
             }
             return bestResult;
         }
-    }  
+    }
 }

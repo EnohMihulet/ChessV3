@@ -4,15 +4,11 @@ using System.Diagnostics;
 using UnityEngine;
 
 namespace Chess.Core
-{
+{    
     public class Evaluation
     {
         public static int[] PieceValues = {0, 1, 3, 3, 5, 9, 100};
         public static int[] WeightedPieceValues = {0, 100, 300, 300, 500, 900, 0};
-
-        public Evaluation(Board board)
-        {
-        }
 
         public static int Evaluate(Board board) 
         {
@@ -37,7 +33,7 @@ namespace Chess.Core
                 // Determine sign based on who is board.ColorToMove
                 sbyte sign = (sbyte) ((pieceColor == board.CurrentGameState.ColorToMove) ? 1 : -1);
                 // Base piece value
-                float baseVal = WeightedPieceValues[pieceType];
+                float baseVal = (float)(WeightedPieceValues[pieceType] * 1.5);
                 // Determine indexing for piece-square tables
                 byte square = (byte)((pieceColor == 1) ? i : 63 - i);
 

@@ -16,7 +16,7 @@ namespace Chess.Game
 			PlayerColor = color;
 			OpponentColor = (color == 0) ? 1 : 0;
 			PlayerType = GameManager.PlayerType.AI;
-			searcher = new Searcher(Searcher.StartDepth, PlayerColor == 0);
+			searcher = new Searcher(Searcher.StartDepth);
 		}
 
 		public Move Search()

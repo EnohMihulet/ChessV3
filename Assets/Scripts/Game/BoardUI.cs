@@ -64,7 +64,7 @@ namespace Chess.Game
                     // Alternate colors for the chessboard pattern
                     renderer.material.color = LightSquareColor;
 
-                    if ((rank + file) % 2 == Orientation) 
+                    if ((rank + file) % 2 == 0) 
                         renderer.material.color = DarkSquareColor;
 
                     Squares[rank * 8 + file] = square;
@@ -111,13 +111,11 @@ namespace Chess.Game
                 }
             }
             // Changes the color that faces the player
-            transform.rotation = new Quaternion(0,0,0,0);
+            transform.rotation = rotation;
             transform.position = new Vector3(0,0,0);
             
-            if (Orientation == 1) {
-                transform.rotation = new Quaternion(0,0,180,0);
+            if (Orientation == 1)
                 transform.position = new Vector3(7,7,0);
-            }
         }
 
         public void ClearBoard(bool clearSquares, bool clearPieces) {

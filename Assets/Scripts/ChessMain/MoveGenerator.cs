@@ -557,13 +557,13 @@ namespace Chess.Core
             return legalMoveCount;
         }
 
+        // Checks if an enemy piece is on a square that attacks the given square
         public static bool IsSquareUnderAttack(Board board, int square, int colorToMove)
         {
-            // Check if an enemy piece is on a square that attacks the given square
             int enemyColor = colorToMove == 0 ? 1 : 0;
 
             // Check for pawn attacks
-            int pawnDirection = enemyColor == Piece.White ? 1 : -1;
+            int pawnDirection = enemyColor == 0 ? -1 : 1;
             int[] possiblePawnSquares = { square + (7 * pawnDirection), square + (9 * pawnDirection) };
             foreach (var pawnSquare in possiblePawnSquares)
             {

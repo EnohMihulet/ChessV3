@@ -18,8 +18,8 @@ namespace Chess.Core
         public GameState CurrentGameState;
         public GameResult.EndResult CurrentEndResult;
         public bool IsWhiteToMove => CurrentGameState.ColorToMove == 0 ? true: false;
-        public int MoveColor => IsWhiteToMove ? 0 : 1;
-        public int OpponentColor => IsWhiteToMove ? 1 : 0;
+        public int MoveColor => IsWhiteToMove ? 0 : 8;
+        public int OpponentColor => IsWhiteToMove ? 8 : 0;
         public const int WhiteIndex = 0;
         public const int BlackIndex = 1;
         public int MoveColorIndex => IsWhiteToMove ? 0 : 1;
@@ -172,16 +172,17 @@ namespace Chess.Core
 			}
 
             // Create the new game-state and push the new gamestate to the stack
-            GameState newState = new(OpponentColor, newCastlingRights, newEnPassantFile, capturedPieceType, newHalfmoveClock, newFullmoveCount, newZobristHash);
+            GameState newState = new(OpponentColorIndex, newCastlingRights, newEnPassantFile, capturedPieceType, newHalfmoveClock, newFullmoveCount, newZobristHash);
             GameStateHistory.Push(newState);
 			CurrentGameState = newState;
 
-            // Add position to repetition history
+            // Add position to repetition history and add move to move
             // Current result of the game
             if (recordMove)
             {
                 RepetitionPositionHistory.Push(newZobristHash);
                 CurrentEndResult = GameResult.CurrentGameResult(this);
+                AllGameMoves.Add(move);
             }
                 
         }   
@@ -243,12 +244,13 @@ namespace Chess.Core
             GameStateHistory.Pop();
             CurrentGameState = GameStateHistory.Peek();
 
-            // Remove previous position from repetition history
+            // Remove previous position from repetition history and remove previous move from move history
             // Current result of the game
             if (recordMove)
             {
                 RepetitionPositionHistory.Pop();
                 CurrentEndResult = GameResult.CurrentGameResult(this);
+                AllGameMoves.Remove(move);
             }
         }
 

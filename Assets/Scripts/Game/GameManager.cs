@@ -10,7 +10,6 @@ namespace Chess.Game
 	public class GameManager : MonoBehaviour
 	{
 
-		public event System.Action onPositionLoaded;
 		public enum PlayerType { Human, AI }
 		public enum GameType { PVP, PVB, BVB}
 
@@ -39,6 +38,7 @@ namespace Chess.Game
 		[Header("Interal stuff")]
 		public bool HumanPlaysWhite = true;
 		public Board board { get; set; }
+		public List<string> SANMoves;
 		public GameResult.EndResult gameResult => board.CurrentEndResult;
 		public BoardUI boardUI;
 		public OtherUI otherUI;
@@ -53,7 +53,7 @@ namespace Chess.Game
 			boardUI = FindObjectOfType<BoardUI>();
 			otherUI = FindObjectOfType<OtherUI>();
 
-			NewGame(HumanPlaysWhite);
+			NewGame();
 		}
 
 		void Update()
@@ -85,11 +85,18 @@ namespace Chess.Game
 			Player player = (colorToMove == 0) ? whitePlayer : blackPlayer;
 			Player opponent = (colorToMove == 0) ? blackPlayer : whitePlayer;
 
-			if (player.selectedMoveIsPromotion)
-				player.SelectedMove = new Move(player.SelectedMove.StartSquare, player.SelectedMove.TargetSquare, (uint) promotionFlag);
+			Move move = player.SelectedMove;
 
-			board.MakeMove(player.SelectedMove, true);
+			if (player.selectedMoveIsPromotion)
+				move = new Move(move.StartSquare, move.TargetSquare, (uint) promotionFlag);
+
+			SANMoves.Add(MoveHelper.MoveToSANMove(board, move));
+
+			board.MakeMove(move, true);
 			boardUpdated = false;
+
+			if (colorToMove == 0)
+				otherUI.MakeTurnDisplay();
 
 			if (gameResult != GameResult.EndResult.InProgress)
 				GameOver();
@@ -103,8 +110,10 @@ namespace Chess.Game
 
 			// Place the pieces in their new location
 			boardUI.ClearBoard(true, true);
-			boardUI.DrawSquares(HumanPlaysWhite);
+			boardUI.DrawSquares(HumanPlaysWhite, false);
 			boardUI.PlacePieces(board);
+
+			StartCoroutine(otherUI.autoScrollGameHistory());
 
 			// Update player
 			player.MoveFound = false;
@@ -118,20 +127,26 @@ namespace Chess.Game
 			boardUpdated = true;
 		}
 
-		public void NewGame(bool humanPlaysWhite)
+		public void NewGame()
 		{
-			boardUI.SetPerspective(humanPlaysWhite);
+			boardUI.SetPerspective(HumanPlaysWhite);
 
 			// Clear old pieces and squares
 			boardUI.ClearBoard(true, true);
+
+			// Clear turn history and past SAN moves
+			otherUI.ClearTurnDisplay();
+			SANMoves.Clear();
 
 			// Generate the new board
 			board = new Board();
 
 			if (gameType == GameType.PVP)
+			{
 				NewGame(PlayerType.Human, PlayerType.Human);
+			}
 			else if (gameType == GameType.PVB)
-				NewGame(humanPlaysWhite ? PlayerType.Human : PlayerType.AI, humanPlaysWhite ? PlayerType.AI : PlayerType.Human);
+				NewGame(HumanPlaysWhite ? PlayerType.Human : PlayerType.AI, HumanPlaysWhite ? PlayerType.AI : PlayerType.Human);
 			else
 				NewGame(PlayerType.AI, PlayerType.AI);
 		}
@@ -149,7 +164,6 @@ namespace Chess.Game
 				board.LoadStartPosition();
 			}
 
-			onPositionLoaded?.Invoke();
 			boardUI.DrawSquares(HumanPlaysWhite);
 			boardUI.PlacePieces(board);
 

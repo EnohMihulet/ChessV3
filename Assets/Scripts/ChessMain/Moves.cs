@@ -80,5 +80,10 @@ namespace Chess.Core
         public bool IsCastling => ((moveValue >> 12) & 0xF) == CastleFlag;
         public bool IsEnPassantCapture => ((moveValue >> 12) & 0xF) == EnPassantCaptureFlag;
         public bool IsDoubleMove => ((moveValue >> 12) & 0xF) == PawnTwoUpFlag;
+
+        public bool IsCapture(Board board)
+        {
+            return board.Chessboard[this.TargetSquare] != 0;
+        }
     }
 }

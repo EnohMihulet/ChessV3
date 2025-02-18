@@ -34,7 +34,7 @@ namespace Chess.Game
 		public GameObject WMaterialCount; // White captured pieces value
 		public GameObject BMaterialCount; // Black captured pieces value
 
-		// Toggles
+		// Toggles for gamemode
 		public Toggle PVPToggle; // Player vs player
 		public Toggle PVBToggle; // Player vs bot
 		public Toggle BVBToggle; // Bot vs bot
@@ -44,24 +44,36 @@ namespace Chess.Game
 		public GameObject WhitePromotionPieces;
 		public GameObject BlackPromotionPieces;
 
+		// Each turn contains a white and black move as well as scores for the position
+		public GameObject TurnPrefab;
+		public GameObject TurnParent;
+
+		// List of turns
+		public List<GameObject> Turns;
+
+		// Scroll rect in game history
+		public ScrollRect scrollRect;
+		
+
+
 		// Colors
 		public Color white = Color.white;
 		public Color gray = Color.gray;
 
-        private bool HumanPlaysWhite;
+        private bool HumanPlaysWhite => GameManager.HumanPlaysWhite;
         List<int> CapturedPieces;
+		private const int TurnYStartPos = -15;
+		private const int TurnYOffset = -25;
 
         public void Start()
         {
             WCapturedPieces = new List<GameObject>();
 			BCapturedPieces = new List<GameObject>();
-
-            HumanPlaysWhite = GameManager.HumanPlaysWhite;
         }
 
 		public void StartButtonPressed()
 		{	
-			GameManager.NewGame(HumanPlaysWhite);
+			GameManager.NewGame();
 
             ClearCapturedPieces();
             ClearMaterialCounts();
@@ -69,8 +81,7 @@ namespace Chess.Game
 
         public void ChangeColorButtonPressed()
 		{
-			HumanPlaysWhite = (HumanPlaysWhite == true) ? false : true;
-            GameManager.HumanPlaysWhite = HumanPlaysWhite;
+            GameManager.HumanPlaysWhite = (HumanPlaysWhite == true) ? false : true;
 
 			// Change the text of the button
 			TMP_Text buttonText = PlayerColorButton.GetComponentInChildren<TMP_Text>();
@@ -78,12 +89,12 @@ namespace Chess.Game
 			if (HumanPlaysWhite)
 			{
 				buttonText.text = "White";
-				buttonText.color = UnityEngine.Color.white;
+				buttonText.color = Color.white;
 			}
 			else
 			{
 				buttonText.text = "Black";
-				buttonText.color = UnityEngine.Color.black;
+				buttonText.color = Color.black;
 			}
 		}
 
@@ -282,6 +293,56 @@ namespace Chess.Game
 				GameManager.promotionFlag = Move.PromoteToRookFlag;
 
 			HidePromotionUI();
+		}
+
+
+		public void MakeTurnDisplay()
+		{
+			int SANMoveCount = GameManager.SANMoves.Count;
+			int fullMoveCount = GameManager.board.CurrentGameState.FullmoveCount;
+
+			string whiteMove = GameManager.SANMoves[SANMoveCount - 2];
+			string blackMove = GameManager.SANMoves[SANMoveCount - 1];
+
+			GameObject turn = Instantiate(TurnPrefab, new Vector3(0, TurnYStartPos + ((SANMoveCount/2 - 1) * TurnYOffset), 0), Quaternion.identity);
+
+			turn.transform.SetParent(TurnParent.transform, false);
+			Turns.Add(turn);			
+
+			TMP_Text[] moveTexts = turn.GetComponentsInChildren<TMP_Text>();
+
+			// Fullmove number
+			moveTexts[0].text = (GameManager.board.CurrentGameState.FullmoveCount - 1).ToString() + ".";
+			
+			// White and black SAN moves
+			moveTexts[1].text = whiteMove;
+			moveTexts[2].text = blackMove;
+
+			// TODO scores for both players
+			moveTexts[3].text = "1";
+			moveTexts[4].text = "2";
+		}
+
+
+		public void ClearTurnDisplay()
+		{
+			foreach(GameObject turn in Turns)
+			{
+				Destroy(turn);
+			}
+		}
+
+
+		public void UpdateMoveHistory()
+		{
+
+		}
+
+
+		public IEnumerator autoScrollGameHistory()
+		{
+			yield return null;
+			scrollRect.verticalNormalizedPosition = 0;
 		}
     }
 }
