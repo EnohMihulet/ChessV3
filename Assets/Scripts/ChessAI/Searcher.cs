@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using Unity.Mathematics;
+using static Chess.TranspositionTable;
 
 namespace Chess.Core
 {
@@ -10,12 +10,16 @@ namespace Chess.Core
 
         const int positiveInfinity = 9999999;
 		const int negativeInfinity = -positiveInfinity;
-        public const int StartDepth = 6;
+        public const int StartDepth = 5;
+        public const int MaxEntensions = 3;
         public int CurrentDepth;
         public static int[] PieceValues = { 0, 1, 3, 3, 5, 9, 100 };
 
+        private readonly TranspositionTable transpositionTable;
+
         public Searcher(int depth)
         {
+            transpositionTable = new TranspositionTable();
             CurrentDepth = depth;
         }
 
@@ -23,14 +27,26 @@ namespace Chess.Core
         {
             public Move move;
             public int score;
+
+            public MoveResult(Move move, int score)
+            {
+                this.move = move;
+                this.score = score;
+            }
+
+            // Move result with a null move and score of 0
+            public static MoveResult NullZero => new MoveResult(Move.NullMove, 0);
+
+            // Move result with a null move and score of negative infinity
+            public static MoveResult NullNegativeInf => new MoveResult(Move.NullMove, negativeInfinity);
         }
 
         public Move StartSearch(Board board)
         {            
-            return NegaMax(board, CurrentDepth, negativeInfinity, positiveInfinity).move;
+            return NegaMax(board, CurrentDepth, negativeInfinity, positiveInfinity, 0).move;
         }
 
-        public MoveResult NegaMax(Board board, int depth, int alpha, int beta)
+        public MoveResult NegaMax(Board board, int depth, int alpha, int beta, int numExtensions)
         {
             if (depth == 0)
             {
@@ -41,11 +57,36 @@ namespace Chess.Core
                 };
             }
 
-            MoveResult bestResult = new MoveResult 
+            if (transpositionTable.GetEvaluation(board.CurrentGameState.ZobristHash) != LookUpFailed)
             {
-                move = Move.NullMove,
-                score = negativeInfinity
-            };
+                Entry entry = transpositionTable.LookUpZobrist(board.CurrentGameState.ZobristHash);
+
+                if (entry.nodeType == LowerBound)
+                    alpha = entry.score > alpha ? entry.score : alpha;
+
+                else if (entry.nodeType == UpperBound)
+                    beta = entry.score < beta ? entry.score : beta;
+
+                else if (entry.depth >= depth)
+                {
+                    MoveResult lookUpResult = new MoveResult
+                    {
+                        move = entry.bestMove,
+                        score = entry.score
+                    };
+
+                    return lookUpResult;
+                }
+            }
+
+            // Return a score of 0 if the position ended to to repetition or the 50 move rule
+            if (board.CurrentEndResult == GameResult.EndResult.FiftyMoveRule || board.CurrentEndResult == GameResult.EndResult.Repetition)
+                return MoveResult.NullZero;
+
+
+            MoveResult bestResult = MoveResult.NullNegativeInf;
+
+            int originalAlpha = alpha;
 
             Span<Move> spanMoves = MoveGenerator.GenerateAllMoves(board, false);
 
@@ -59,27 +100,41 @@ namespace Chess.Core
                 // No moves: a checkmate or stalemate position.
                 // If this is stalemate, then return 0
                 if (board.CurrentEndResult == GameResult.EndResult.Stalemate)
-                {
-                    return new MoveResult 
-                    {
-                        move = Move.NullMove,
-                        score = 0
-                    };
-                }
+                    return MoveResult.NullZero;
+
                 // If it is checkmate, return negative infinity
-                return new MoveResult 
-                {
-                    move = Move.NullMove,
-                    score = negativeInfinity
-                };
+                return MoveResult.NullNegativeInf;
             }
 
             for (int i = 0; i < count; i ++) {
                 Move move = allMoves[i];
 
+                bool isCapture = move.IsCapture(board);
+
                 board.MakeMove(move); 
 
-                MoveResult result = NegaMax(board, depth - 1, -beta, -alpha);
+                int nextDepth = depth;
+                if (numExtensions <= MaxEntensions)
+                {
+                    if (isCapture)
+                    {
+                        numExtensions += 1;
+                        nextDepth += 1;
+                    }
+                    else if (board.IsKingInCheck(board, board.CurrentGameState.ColorToMove))
+                    {
+                        numExtensions += 1;
+                        nextDepth += 1;
+                    }
+                    else if (Piece.PieceType(board.Chessboard[move.TargetSquare]) == Piece.Pawn && (move.TargetSquare == 1 || move.TargetSquare == 6))
+                    {
+                        numExtensions += 1;
+                        nextDepth += 1;
+                    }
+                }
+                
+
+                MoveResult result = NegaMax(board, nextDepth - 1, -beta, -alpha, numExtensions);
                 result.score = -result.score;
                     
                 if (result.score >= bestResult.score) {
@@ -90,12 +145,16 @@ namespace Chess.Core
                 board.UnMakeMove(move);
 
                 // Update alpha
-                alpha = Math.Max(alpha, bestResult.score);
+                alpha = math.max(alpha, bestResult.score);
+
                 if (alpha > beta) {
                     // Prune
                     break;
                 }
             }
+
+            transpositionTable.StoreEntry(new Entry(board.CurrentGameState.ZobristHash, bestResult.move, depth, bestResult.score, SetNodeType(alpha, beta, originalAlpha)));
+
             return bestResult;
         }
     }
