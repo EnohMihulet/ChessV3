@@ -13,24 +13,30 @@ namespace Chess.Core
         public const int ranks = 8;
         public const int files = 8;
         public const int Squares = ranks * files;
+        // Positions of kings
         public int[] Kings;
 
+        // Stores gamestate variables like castling rights, en passant file, color to move, etc.
         public GameState CurrentGameState;
+        // Result of the game (in progress, stalemate, black is mated, white is mated, etc.)
         public GameResult.EndResult CurrentEndResult;
         public bool IsWhiteToMove => CurrentGameState.ColorToMove == 0 ? true: false;
-        public int MoveColor => IsWhiteToMove ? 0 : 8;
-        public int OpponentColor => IsWhiteToMove ? 8 : 0;
+        public int MoveColor => IsWhiteToMove ? 0 : 8; // Used to create pieces
+        public int OpponentColor => IsWhiteToMove ? 8 : 0; // Used to create pieces
         public const int WhiteIndex = 0;
         public const int BlackIndex = 1;
         public int MoveColorIndex => IsWhiteToMove ? 0 : 1;
         public int OpponentColorIndex  => IsWhiteToMove ? 1 : 0;
 
-        public ulong ZobristHash => CurrentGameState.ZobristHash;
-        public List<Move> AllGameMoves;
-        public Stack<ulong> RepetitionPositionHistory;
+        public ulong ZobristHash => CurrentGameState.ZobristHash; // ulong storing a position
+        public int ColorToMove => CurrentGameState.ColorToMove;
+        public List<Move> AllGameMoves; // All moves made during the game
+        public Stack<ulong> RepetitionPositionHistory; // All positions used to check for draw by repetition
         public List<int> CapturedPieces;
+        private Stack<GameState> GameStateHistory = new Stack<GameState>(); // Allows for easy make/unmake of moves
 
-        private Stack<GameState> GameStateHistory = new Stack<GameState>();
+        // Bitboards
+        public ulong[] AllBitBoards; // Indexed by piece type
 
 
         public Board()
@@ -49,7 +55,7 @@ namespace Chess.Core
 
         // Make a move and update the state of the game
         // Record move determines whether or not to store move
-        public void MakeMove(Move move, bool recordMove = false)
+        public void MakeMove(Move move, bool recordMove = false, bool inSearch = false)
         {
             int startSquare = move.StartSquare;
             int targetSquare = move.TargetSquare;
@@ -184,10 +190,15 @@ namespace Chess.Core
                 CurrentEndResult = GameResult.CurrentGameResult(this);
                 AllGameMoves.Add(move);
             }
-                
+            
+            if (inSearch && !recordMove)
+            {
+                RepetitionPositionHistory.Push(newZobristHash);
+                CurrentEndResult = GameResult.CurrentGameResult(this);
+            }
         }   
 
-        public void UnMakeMove(Move move, bool recordMove = false)
+        public void UnMakeMove(Move move, bool recordMove = false, bool inSearch = false)
         {   
             CurrentGameState.ChangeColorToMove();
 
@@ -252,6 +263,8 @@ namespace Chess.Core
                 CurrentEndResult = GameResult.CurrentGameResult(this);
                 AllGameMoves.Remove(move);
             }
+
+            if (inSearch && )
         }
 
         public bool IsKingInCheck(Board board, int kingColor)
@@ -287,6 +300,8 @@ namespace Chess.Core
 
 				if (piece != Piece.None)
 				{
+                    bitboardUtil.Set(AllBitBoards[pieceType], squareIndex);
+                    
 					if (pieceType == Piece.King)
 					{
 						Kings[colourIndex] = squareIndex;
@@ -324,6 +339,7 @@ namespace Chess.Core
 			RepetitionPositionHistory = new Stack<ulong>(capacity: 64);
 			GameStateHistory = new Stack<GameState>(capacity: 64);
             CapturedPieces = new List<int>(capacity: 32);
+            AllBitBoards = new ulong[Piece.BlackKing + 1];
 		}
     }
 }

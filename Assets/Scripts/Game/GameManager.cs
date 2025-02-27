@@ -36,12 +36,14 @@ namespace Chess.Game
 		public int promotionFlag = 0;
 
 		[Header("Interal stuff")]
+		public bool gameOver = false;
 		public bool HumanPlaysWhite = true;
 		public Board board { get; set; }
 		public List<string> SANMoves;
 		public GameResult.EndResult gameResult => board.CurrentEndResult;
 		public BoardUI boardUI;
 		public OtherUI otherUI;
+		public Evaluation evaluator;
 		
 
 
@@ -58,6 +60,9 @@ namespace Chess.Game
 
 		void Update()
 		{	
+			if (gameOver)
+				return;
+
 			if (boardUI == null)
 				boardUI = FindObjectOfType<BoardUI>();
 
@@ -99,7 +104,10 @@ namespace Chess.Game
 				otherUI.MakeTurnDisplay();
 
 			if (gameResult != GameResult.EndResult.InProgress)
+			{
+				gameOver = true;
 				GameOver();
+			}
 
 			// Updates the display of captured pieces
 			if (board.CurrentGameState.CapturedPieceType != 0)
@@ -122,7 +130,8 @@ namespace Chess.Game
 			player.selectedMoveIsPromotion = false;
 			promotionFlag = 0;
 
-			score = Evaluation.Evaluate(board);
+			evaluator = new Evaluation();
+			score = evaluator.Evaluate(board);
 
 			boardUpdated = true;
 		}

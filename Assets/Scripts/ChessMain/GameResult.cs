@@ -85,7 +85,7 @@ namespace Chess.Core
             if (moveCount == 0)
             {
                 if (board.IsKingInCheck(board, color)) {
-                    return color == 1 ? EndResult.WhiteIsMated : EndResult.BlackIsMated;
+                    return color == 0 ? EndResult.WhiteIsMated : EndResult.BlackIsMated;
                 }
                 return  EndResult.Stalemate;
             }

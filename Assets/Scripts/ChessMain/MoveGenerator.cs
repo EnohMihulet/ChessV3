@@ -14,7 +14,7 @@ namespace Chess.Core
         public const int MaxPieceMoves = 27;
 
         public enum PromotionMode { All, QueenOnly, QueenAndKnight }
-        public static PromotionMode PromotionsToGenerate { get; set; } = PromotionMode.All;
+        public static PromotionMode PromotionsToGenerate { get; set; } = PromotionMode.QueenAndKnight;
 
         public static Span<Move> GenerateAllMoves(Board board, bool onlyCaptures)
         {
@@ -439,7 +439,7 @@ namespace Chess.Core
                     if (board.CurrentGameState.WhiteQueenSideCastlingRight)
                     {
                         int targetSquare = startSquare - 2;
-                        if (Piece.IsNone(board.Chessboard[startSquare - 1]) && Piece.IsNone(board.Chessboard[targetSquare]))
+                        if (Piece.IsNone(board.Chessboard[startSquare - 1]) && Piece.IsNone(board.Chessboard[targetSquare]) && Piece.IsNone(board.Chessboard[startSquare - 3]))
                             moves[moveCount++] = new Move(startSquare, targetSquare, Move.CastleFlag);
                     }
                 }
@@ -456,7 +456,7 @@ namespace Chess.Core
                     if (board.CurrentGameState.BlackQueenSideCastlingRight)
                     {
                         int targetSquare = startSquare - 2;
-                        if (Piece.IsNone(board.Chessboard[startSquare - 1]) && Piece.IsNone(board.Chessboard[targetSquare]))
+                        if (Piece.IsNone(board.Chessboard[startSquare - 1]) && Piece.IsNone(board.Chessboard[targetSquare]) && Piece.IsNone(board.Chessboard[startSquare - 3]))
                             moves[moveCount++] = new Move(startSquare, targetSquare, Move.CastleFlag);
                     }
                 }

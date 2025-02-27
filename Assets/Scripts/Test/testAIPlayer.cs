@@ -2,21 +2,22 @@ using System.Collections;
 using System.Collections.Generic;
 using System;
 using Chess.Core;
+using Chess.Game;
 
-namespace Chess.Game
+namespace Chess.Test
 {
-	public class AIPlayer : Player
+	public class TestAIPlayer : Player
 	{
-		Searcher searcher;
+		OldSearcher searcher;
 		private bool isSearching = false; // Flag
 
-		public AIPlayer(Board board, int color)
+		public TestAIPlayer(Board board, int color)
 		{
 			this.board = board;
 			PlayerColor = color;
 			OpponentColor = (color == 0) ? 1 : 0;
 			PlayerType = GameManager.PlayerType.AI;
-			searcher = new Searcher();
+			searcher = new OldSearcher(OldSearcher.StartDepth);
 		}
 
 		public Move Search()

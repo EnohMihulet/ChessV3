@@ -5,7 +5,7 @@ using UnityEngine;
 
 namespace Chess.Core
 {    
-    public class Evaluation
+    public class OldEvaluation
     {
         // Piece Values
         public static int[] PieceValues = {0, 1, 3, 3, 5, 9, 100};
@@ -46,7 +46,7 @@ namespace Chess.Core
                 float baseVal = WeightedPieceValues[pieceType];
 
                 // Determine indexing for piece-square tables
-                byte square = (byte)((pieceColor == 1) ? i : PieceSquareTables.GetFlippedPosition(i));
+                byte square = (byte)((pieceColor == 0) ? i : PieceSquareTables.GetFlippedPosition(i));
 
                 PhaseCalculations(pieceType, pieceColor);
 
