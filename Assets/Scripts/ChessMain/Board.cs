@@ -193,6 +193,7 @@ namespace Chess.Core
             
             if (inSearch && !recordMove)
             {
+                AllGameMoves.Add(move);
                 RepetitionPositionHistory.Push(newZobristHash);
                 CurrentEndResult = GameResult.CurrentGameResult(this);
             }
@@ -264,7 +265,12 @@ namespace Chess.Core
                 AllGameMoves.Remove(move);
             }
 
-            if (inSearch && )
+            if (inSearch && !recordMove)
+            {
+                AllGameMoves.Remove(move);
+                RepetitionPositionHistory.Pop();
+                CurrentEndResult = GameResult.CurrentGameResult(this);
+            }
         }
 
         public bool IsKingInCheck(Board board, int kingColor)

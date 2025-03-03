@@ -66,7 +66,39 @@ namespace Chess.Core
             moveCount = FilterOutIllegalMoves(board, moves.Slice(0, moveCount));
         }
 
-        private static void GeneratePawnMoves(int square, Board board, Span<Move> moves, bool onlyCaptures, ref int moveCount)
+
+        // Generates the moves that the piece currently on a specific square has
+        public static Span<Move> GenerateSquareMoves(Board board, int square, bool onlyCaptures)
+        {
+            Move[] moveArray = new Move[MaxPieceMoves];
+            Span<Move> moves = moveArray.AsSpan();
+
+            int moveCount = 0;
+            switch (board.Chessboard[square])
+                {
+                    case Piece.Pawn:
+                        GeneratePawnMoves(square, board, moves, onlyCaptures, ref moveCount);
+                        break;
+                    case Piece.Knight:
+                        GenerateKnightMoves(square, board, moves, onlyCaptures, ref moveCount);
+                        break;
+                    case Piece.Bishop:
+                        GenerateBishopMoves(square, board, moves, onlyCaptures, ref moveCount);
+                        break;
+                    case Piece.Rook:
+                        GenerateRookMoves(square, board, moves, onlyCaptures, ref moveCount);
+                        break;
+                    case Piece.Queen:
+                        GenerateQueenMoves(square, board, moves, onlyCaptures, ref moveCount);
+                        break;
+                    case Piece.King:
+                        GenerateKingMoves(square, board, moves, onlyCaptures, ref moveCount);
+                        break;
+                }
+            return moves.Slice(0, moveCount);
+        }
+
+        public static void GeneratePawnMoves(int square, Board board, Span<Move> moves, bool onlyCaptures, ref int moveCount)
         {
             int direction = board.IsWhiteToMove ? 1 : -1;
             int singlePush = square + direction * 8;
@@ -197,7 +229,7 @@ namespace Chess.Core
         }
 
 
-        private static void GenerateKnightMoves(int square, Board board, Span<Move> moves, bool onlyCaptures, ref int moveCount)
+        public static void GenerateKnightMoves(int square, Board board, Span<Move> moves, bool onlyCaptures, ref int moveCount)
         {   
             int directionCount = BoardHelper.KnightCoorDirections.Count();
 
@@ -233,7 +265,7 @@ namespace Chess.Core
             }
         }
 
-        private static void GenerateBishopMoves(int square, Board board, Span<Move> moves, bool onlyCaptures, ref int moveCount)
+        public static void GenerateBishopMoves(int square, Board board, Span<Move> moves, bool onlyCaptures, ref int moveCount)
         {
             int directionCount = BoardHelper.DiagonalSquareDirections.Count();
 
@@ -277,7 +309,7 @@ namespace Chess.Core
             }
         }
 
-        private static void GenerateRookMoves(int square, Board board, Span<Move> moves, bool onlyCaptures, ref int moveCount)
+        public static void GenerateRookMoves(int square, Board board, Span<Move> moves, bool onlyCaptures, ref int moveCount)
         {
             int directionCount = BoardHelper.StraightSquareDirections.Count();
 
@@ -322,7 +354,7 @@ namespace Chess.Core
             }
         }
 
-        private static void GenerateQueenMoves(int square, Board board, Span<Move> moves, bool onlyCaptures, ref int moveCount)
+        public static void GenerateQueenMoves(int square, Board board, Span<Move> moves, bool onlyCaptures, ref int moveCount)
         {
             int[] queenSquareDirections = BoardHelper.StraightSquareDirections.Concat(BoardHelper.DiagonalSquareDirections).ToArray();
             int directionCount = queenSquareDirections.Count();

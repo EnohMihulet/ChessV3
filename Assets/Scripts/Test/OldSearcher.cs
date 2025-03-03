@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using Unity.Mathematics;
+using UnityEngine;
 using static Chess.TranspositionTable;
 
 namespace Chess.Core
@@ -11,58 +12,81 @@ namespace Chess.Core
 
         const int positiveInfinity = 9999999;
 		const int negativeInfinity = -positiveInfinity;
-        public const int StartDepth = 5;
         public const int MaxEntensions = 0;
-        public int CurrentDepth;
-        public static int[] PieceValues = { 0, 1, 3, 3, 5, 9, 100 };
+        public int CurrentSearchDepth;
+        public Move BestMoveThisIteration;
+        public int BestEvalThisIteration;
 
+        public bool SearchCanceled = false;
+        Stopwatch SearchTimer;
+        const int TimePerMove = 1000; // 5 Seconds per move
+
+        public Move BestMove;
+        public int BestEval;
+        public Board board;
         private readonly TranspositionTable transpositionTable;
         private Evaluation evaluator;
+        private MoveSorter moveSorter;
 
-        public OldSearcher(int depth)
+        public OldSearcher()
         {
-            transpositionTable = new TranspositionTable();
-            CurrentDepth = depth;
-        }
-
-        public struct MoveResult
-        {
-            public Move move;
-            public int score;
-
-            public MoveResult(Move move, int score)
-            {
-                this.move = move;
-                this.score = score;
-            }
-
-            // Move result with a null move and score of 0
-            public static MoveResult NullZero => new MoveResult(Move.NullMove, 0);
-
-            // Move result with a null move and score of negative infinity
-            public static MoveResult NullNegativeInf => new MoveResult(Move.NullMove, negativeInfinity);
+            this.transpositionTable = new TranspositionTable();
+            this.evaluator = new Evaluation();
+            this.moveSorter = new MoveSorter();
         }
 
         public Move StartSearch(Board board)
         {   
-            evaluator = new Evaluation();
-            return NegaMax(board, CurrentDepth, negativeInfinity, positiveInfinity, 0).move;
+            this.board = board;
+            CurrentSearchDepth = 1;
+            SearchCanceled = false;
+            SearchTimer = Stopwatch.StartNew();
+
+            BestMove = BestMoveThisIteration = Move.NullMove;
+            BestEval = BestEvalThisIteration = negativeInfinity;
+
+            IterativeDeepeningSearch();
+            
+            UnityEngine.Debug.Log("Main Depth: " + CurrentSearchDepth);
+            return BestMove;
         }
 
-        public MoveResult NegaMax(Board board, int depth, int alpha, int beta, int numExtensions)
+        void IterativeDeepeningSearch()
         {
-            if (depth == 0)
+            for (int depth = 1; depth < 100; depth++)
             {
-                return new MoveResult 
+                CurrentSearchDepth = depth;
+
+                Search(depth, 0, negativeInfinity, positiveInfinity);
+
+                if (!SearchCanceled)
                 {
-                    move = Move.NullMove,
-                    score = evaluator.Evaluate(board)
-                };
+                    BestEval = BestEvalThisIteration;
+                    BestMove = BestMoveThisIteration;
+                }
+
+                if (SearchTimer.ElapsedMilliseconds >= TimePerMove)
+                {
+                    SearchCanceled = true;
+                    return;
+                }
+            }
+        }
+
+        int Search(int pliesRemaining, int pliesFromRoot, int alpha, int beta)
+        {
+            // Searched cancelled, exit search
+            if (SearchCanceled)
+            {
+                return 0;
             }
 
-            // Return a score of 0 if the position ended to to repetition or the 50 move rule
-            if (board.CurrentEndResult == GameResult.EndResult.FiftyMoveRule || board.CurrentEndResult == GameResult.EndResult.Repetition)
-                return MoveResult.NullZero;
+            if (CurrentSearchDepth > 0) {
+                // Draw by repetition or FiftyMoveRule, return score for draw (0)
+                if (board.CurrentEndResult == GameResult.EndResult.Repetition || board.CurrentEndResult == GameResult.EndResult.FiftyMoveRule)
+                    return 0;
+            }
+            
 
             if (transpositionTable.GetEvaluation(board.CurrentGameState.ZobristHash) != LookUpFailed)
             {
@@ -74,92 +98,135 @@ namespace Chess.Core
                 else if (entry.nodeType == UpperBound)
                     beta = entry.score < beta ? entry.score : beta;
 
-                else if (entry.depth >= depth)
+                else if (entry.depth >= pliesRemaining)
                 {
-                    MoveResult lookUpResult = new MoveResult
+                    if (pliesFromRoot == 0)
                     {
-                        move = entry.bestMove,
-                        score = entry.score
-                    };
-
-                    return lookUpResult;
-                }
-            }
-
-            MoveResult bestResult = MoveResult.NullNegativeInf;
-
-            int originalAlpha = alpha;
-
-            Span<Move> spanMoves = MoveGenerator.GenerateAllMoves(board, false);
-
-            Move[] allMoves = spanMoves.ToArray();
-            Array.Sort(allMoves, new MVVLVASorter(board));
-
-            int count = allMoves.Length;
-
-            if (count == 0) 
-            {
-                // No moves: a checkmate or stalemate position.
-                // If this is stalemate, then return 0
-                if (board.CurrentEndResult == GameResult.EndResult.Stalemate)
-                    return MoveResult.NullZero;
-
-                // If it is checkmate, return negative infinity
-                return MoveResult.NullNegativeInf;
-            }
-
-            for (int i = 0; i < count; i ++) 
-            {
-                Move move = allMoves[i];
-
-                bool isCapture = move.IsCapture(board);
-
-                board.MakeMove(move, true); 
-
-                int nextDepth = depth;
-                if (numExtensions <= MaxEntensions)
-                {
-                    if (isCapture)
-                    {
-                        numExtensions += 1;
-                        nextDepth += 1;
+                        BestMoveThisIteration = entry.bestMove;
+                        BestEvalThisIteration = entry.score;
                     }
-                    else if (board.IsKingInCheck(board, board.CurrentGameState.ColorToMove))
-                    {
-                        numExtensions += 1;
-                        nextDepth += 1;
-                    }
-                    else if (Piece.PieceType(board.Chessboard[move.TargetSquare]) == Piece.Pawn && (move.TargetSquare == 1 || move.TargetSquare == 6))
-                    {
-                        numExtensions += 1;
-                        nextDepth += 1;
-                    }
-                }
-                
-
-                MoveResult result = NegaMax(board, nextDepth - 1, -beta, -alpha, numExtensions);
-                result.score = -result.score;
                     
-                if (result.score >= bestResult.score) 
-                {
-                    bestResult.score = result.score;
-                    bestResult.move = move;
-                }
-
-                board.UnMakeMove(move, true);
-
-                // Update alpha
-                alpha = math.max(alpha, bestResult.score);
-
-                if (alpha > beta) 
-                {
-                    break; // prune
+                    return entry.score;
                 }
             }
 
-            transpositionTable.StoreEntry(new Entry(board.CurrentGameState.ZobristHash, bestResult.move, depth, bestResult.score, SetNodeType(alpha, beta, originalAlpha)));
+             // Full depth searched
+            if (pliesRemaining == 0)
+            {
+                return evaluator.Evaluate(board);
+            }
 
-            return bestResult;
+            // Generate all moves
+            Span<Move> moves = MoveGenerator.GenerateAllMoves(board, false);
+
+            // Sort moves
+            moveSorter.Sort(moves, board, BestMove, pliesFromRoot);
+
+            int moveCount = moves.Length;
+
+            // If no moves available, it is either stalemate or checkmate, so return score accordingly
+            if (moveCount == 0)
+            {
+                if (board.CurrentEndResult == GameResult.EndResult.Stalemate)
+                    return 0;
+
+                return negativeInfinity;
+            }
+
+            int origAlpha = alpha;
+            Move BestMoveInThisPos = Move.NullMove;
+
+            // Start alpha-beta search
+            for (int i = 0; i < moveCount; i++)
+            {
+                Move move = moves[i];
+                bool isCapture = move.IsCapture(board);
+                int eval = 0;
+
+                board.MakeMove(move, inSearch: true);
+
+                bool reducedDepthSearch = pliesRemaining >= 3 && i >= 3 && !isCapture;
+                bool fullSearch = true;
+                if (reducedDepthSearch)
+                {   
+                    // Search 1 ply less 
+                    eval = -Search(pliesRemaining - 2, pliesFromRoot + 1, -beta, -alpha);
+                    // Move fails high, should research to full depth
+                    fullSearch = eval > alpha;
+                }
+                if (fullSearch)
+                {   
+                    // Research to full depth
+                    eval = -Search(pliesRemaining - 1, pliesFromRoot + 1, -beta, -alpha);
+                }
+
+                board.UnMakeMove(move, inSearch: true);
+
+                if (SearchTimer.ElapsedMilliseconds >= TimePerMove)
+                {
+                    SearchCanceled = true;
+                    return 0;
+                }                    
+
+                // Current position is the best, update alpha and set the best move in this position
+                if (eval > alpha)
+                {
+                    BestMoveInThisPos = move;
+                    alpha = eval;
+
+                    // Best move at root, update the best move and best eval this iteration
+                    if (pliesFromRoot == 0)
+                    {
+                        BestEvalThisIteration = eval;
+                        BestMoveThisIteration = move; 
+                    }
+                }
+                // Apply a penalty to quiet moves that do no perform well
+                else if (!isCapture)
+                {
+                    int malus = -(300 * pliesFromRoot - 250);
+                    moveSorter.historyTable[board.ColorToMove, move.StartSquare, move.TargetSquare] += HistoryBonus(board.ColorToMove, move, malus);
+                }
+
+
+                // Move is too good, opponent could avoid
+                if (alpha >= beta)
+                {
+
+                    if (!isCapture)
+                    {
+                        // Prioritize this move in future searches
+                        moveSorter.historyTable[board.ColorToMove, move.StartSquare, move.TargetSquare] += HistoryBonus(board.ColorToMove, move, pliesFromRoot * pliesFromRoot);
+                        moveSorter.killerMoves[pliesFromRoot].Add(move);
+
+                        // Apply a bonus to the move 
+                        int movesMade = board.AllGameMoves.Count;
+                        moveSorter.counterTable[board.AllGameMoves[movesMade - 1].StartSquare, board.AllGameMoves[movesMade - 1].TargetSquare] = move;
+                    }
+
+                    break;
+                }
+
+
+                if (SearchCanceled)
+                    return 0;
+
+            }
+
+            sbyte nodeType = SetNodeType(alpha, beta, origAlpha);
+            transpositionTable.StoreEntry(new Entry(board.CurrentGameState.ZobristHash, BestMoveInThisPos, pliesRemaining, alpha, nodeType));
+
+            return alpha;
+        }
+
+        int HistoryBonus(int colorToMove, Move move, int bonus)
+        {
+            int clampedBonus = math.clamp(bonus, -MoveSorter.MaxHistoryBonus, MoveSorter.MaxHistoryBonus);
+
+            int currentHistory = moveSorter.historyTable[colorToMove, move.StartSquare, move.TargetSquare];
+            int delta = clampedBonus - currentHistory * math.abs(clampedBonus) / MoveSorter.MaxHistoryBonus;
+
+            return delta;
         }
     }
 }

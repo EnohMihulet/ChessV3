@@ -92,6 +92,16 @@ namespace Chess.Core
 			int rank = rankNames.IndexOf(rankName);
 			return IndexFromCoord(file, rank);
 		}
+
+		public static bool IsLightSquare(int square)
+		{
+			return square % 2 == 1;
+		}
+
+		public static bool IsDarkSquare(int square)
+		{
+			return square % 2 == 0;
+		}
     }
 }
 

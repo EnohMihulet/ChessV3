@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using Unity.Mathematics;
 using UnityEngine;
 using static Chess.TranspositionTable;
 
@@ -18,18 +19,25 @@ namespace Chess.Core
 
         public bool SearchCanceled = false;
         Stopwatch SearchTimer;
+        const int TimePerMove = 5000; // 5 Seconds per move
 
+        private bool inOpening = true;
+        private string openingsFileName = "./Assets/Resources/Book.txt";
 
         public Move BestMove;
         public int BestEval;
         public Board board;
         private readonly TranspositionTable transpositionTable;
         private Evaluation evaluator;
+        private MoveSorter moveSorter;
+        private OpeningBook openingBook;
 
         public Searcher()
         {
             this.transpositionTable = new TranspositionTable();
             this.evaluator = new Evaluation();
+            this.moveSorter = new MoveSorter();
+            this.openingBook = new OpeningBook(openingsFileName);
         }
 
         public Move StartSearch(Board board)
@@ -42,9 +50,21 @@ namespace Chess.Core
             BestMove = BestMoveThisIteration = Move.NullMove;
             BestEval = BestEvalThisIteration = negativeInfinity;
 
+            if (inOpening)
+            {   
+                string StrMove;
+                bool moveFound = openingBook.TryGetMove(board, out StrMove);
+                UnityEngine.Debug.Log(moveFound);
+                UnityEngine.Debug.Log(StrMove);
+                if (moveFound)
+                    return MoveHelper.StrMoveToMove(board, StrMove);
+                else
+                    inOpening = false;
+            }
+
             IterativeDeepeningSearch();
             
-            UnityEngine.Debug.Log(CurrentSearchDepth);
+            UnityEngine.Debug.Log("Main Depth: " + CurrentSearchDepth);
             return BestMove;
         }
 
@@ -54,7 +74,7 @@ namespace Chess.Core
             {
                 CurrentSearchDepth = depth;
 
-                Search(depth, negativeInfinity, positiveInfinity);
+                Search(depth, 0, negativeInfinity, positiveInfinity);
 
                 if (!SearchCanceled)
                 {
@@ -62,7 +82,7 @@ namespace Chess.Core
                     BestMove = BestMoveThisIteration;
                 }
 
-                if (SearchTimer.ElapsedMilliseconds >= 3000)
+                if (SearchTimer.ElapsedMilliseconds >= TimePerMove)
                 {
                     SearchCanceled = true;
                     return;
@@ -70,7 +90,7 @@ namespace Chess.Core
             }
         }
 
-        int Search(int ply, int alpha, int beta)
+        int Search(int pliesRemaining, int pliesFromRoot, int alpha, int beta)
         {
             // Searched cancelled, exit search
             if (SearchCanceled)
@@ -95,9 +115,9 @@ namespace Chess.Core
                 else if (entry.nodeType == UpperBound)
                     beta = entry.score < beta ? entry.score : beta;
 
-                else if (entry.depth >= ply)
+                else if (entry.depth >= pliesRemaining)
                 {
-                    if (ply == CurrentSearchDepth)
+                    if (pliesFromRoot == 0)
                     {
                         BestMoveThisIteration = entry.bestMove;
                         BestEvalThisIteration = entry.score;
@@ -108,17 +128,16 @@ namespace Chess.Core
             }
 
              // Full depth searched
-            if (ply == 0)
+            if (pliesRemaining == 0)
             {
                 return evaluator.Evaluate(board);
             }
 
             // Generate all moves
-            Span<Move> spanMoves = MoveGenerator.GenerateAllMoves(board, false);
+            Span<Move> moves = MoveGenerator.GenerateAllMoves(board, false);
 
             // Sort moves
-            Move[] moves = spanMoves.ToArray();
-            Array.Sort(moves, new MVVLVASorter(board));
+            moveSorter.Sort(moves, board, BestMove, pliesFromRoot);
 
             int moveCount = moves.Length;
 
@@ -135,20 +154,36 @@ namespace Chess.Core
             Move BestMoveInThisPos = Move.NullMove;
 
             // Start alpha-beta search
-            foreach (Move move in moves)
+            for (int i = 0; i < moveCount; i++)
             {
+                Move move = moves[i];
+                bool isCapture = move.IsCapture(board);
+                int eval = 0;
+
                 board.MakeMove(move, inSearch: true);
 
-                int eval = -Search(ply - 1, -beta, -alpha);
+                bool reducedDepthSearch = pliesRemaining >= 3 && i >= 3 && !isCapture;
+                bool fullSearch = true;
+                if (reducedDepthSearch)
+                {   
+                    // Search 1 ply less 
+                    eval = -Search(pliesRemaining - 2, pliesFromRoot + 1, -beta, -alpha);
+                    // Move fails high, should research to full depth
+                    fullSearch = eval > alpha;
+                }
+                if (fullSearch)
+                {   
+                    // Research to full depth
+                    eval = -Search(pliesRemaining - 1, pliesFromRoot + 1, -beta, -alpha);
+                }
 
                 board.UnMakeMove(move, inSearch: true);
 
-
-                if (SearchTimer.ElapsedMilliseconds >= 3000)
+                if (SearchTimer.ElapsedMilliseconds >= TimePerMove)
                 {
                     SearchCanceled = true;
                     return 0;
-                }
+                }                    
 
                 // Current position is the best, update alpha and set the best move in this position
                 if (eval > alpha)
@@ -157,24 +192,58 @@ namespace Chess.Core
                     alpha = eval;
 
                     // Best move at root, update the best move and best eval this iteration
-                    if (ply == CurrentSearchDepth)
+                    if (pliesFromRoot == 0)
                     {
                         BestEvalThisIteration = eval;
                         BestMoveThisIteration = move; 
                     }
                 }
+                // Apply a penalty to quiet moves that do no perform well
+                else if (!isCapture)
+                {
+                    int malus = -(300 * pliesFromRoot - 250);
+                    moveSorter.historyTable[board.ColorToMove, move.StartSquare, move.TargetSquare] += HistoryBonus(board.ColorToMove, move, malus);
+                }
+
+
+                // Move is too good, opponent could avoid
+                if (alpha >= beta)
+                {
+
+                    if (!isCapture)
+                    {
+                        // Prioritize this move in future searches
+                        moveSorter.historyTable[board.ColorToMove, move.StartSquare, move.TargetSquare] += HistoryBonus(board.ColorToMove, move, pliesFromRoot * pliesFromRoot);
+                        moveSorter.killerMoves[pliesFromRoot].Add(move);
+
+                        // Apply a bonus to the move 
+                        int movesMade = board.AllGameMoves.Count;
+                        moveSorter.counterTable[board.AllGameMoves[movesMade - 1].StartSquare, board.AllGameMoves[movesMade - 1].TargetSquare] = move;
+                    }
+
+                    break;
+                }
+
 
                 if (SearchCanceled)
                     return 0;
 
-                if (alpha >= beta) 
-                    break;
             }
 
             sbyte nodeType = SetNodeType(alpha, beta, origAlpha);
-            transpositionTable.StoreEntry(new Entry(board.CurrentGameState.ZobristHash, BestMoveInThisPos, ply, alpha, nodeType));
+            transpositionTable.StoreEntry(new Entry(board.CurrentGameState.ZobristHash, BestMoveInThisPos, pliesRemaining, alpha, nodeType));
 
             return alpha;
+        }
+
+        int HistoryBonus(int colorToMove, Move move, int bonus)
+        {
+            int clampedBonus = math.clamp(bonus, -MoveSorter.MaxHistoryBonus, MoveSorter.MaxHistoryBonus);
+
+            int currentHistory = moveSorter.historyTable[colorToMove, move.StartSquare, move.TargetSquare];
+            int delta = clampedBonus - currentHistory * math.abs(clampedBonus) / MoveSorter.MaxHistoryBonus;
+
+            return delta;
         }
     }
 }

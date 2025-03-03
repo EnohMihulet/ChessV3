@@ -136,10 +136,14 @@ namespace Chess.Core
 
 			bool CanCapture(Coordinate from)
 			{
-				bool isPawnOnSquare = board.Chessboard[from.SquareIndex()] == friendlyPawn;
+				int fromSquare = from.SquareIndex();
+				if (!from.IsInBounds())
+					return false;
+
+				bool isPawnOnSquare = board.Chessboard[fromSquare] == friendlyPawn;
 				if (from.IsInBounds() && isPawnOnSquare)
 				{
-					Move move = new Move(from.SquareIndex(), epCaptureSquare, Move.EnPassantCaptureFlag);
+					Move move = new Move(fromSquare, epCaptureSquare, Move.EnPassantCaptureFlag);
 					board.MakeMove(move);
 					bool wasLegalMove = !board.IsKingInCheck(board, board.CurrentGameState.ColorToMove);
 
