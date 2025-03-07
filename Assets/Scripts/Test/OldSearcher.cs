@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using Unity.Mathematics;
+using Unity.VisualScripting;
 using UnityEngine;
 using static Chess.TranspositionTable;
 
@@ -19,7 +20,10 @@ namespace Chess.Core
 
         public bool SearchCanceled = false;
         Stopwatch SearchTimer;
-        const int TimePerMove = 1000; // 5 Seconds per move
+        const int TimePerMove = 1000; // 1 Second/s per move
+
+        private bool inOpening = true;
+        private string openingsFileName = "./Assets/Resources/Book.txt";
 
         public Move BestMove;
         public int BestEval;
@@ -27,12 +31,14 @@ namespace Chess.Core
         private readonly TranspositionTable transpositionTable;
         private Evaluation evaluator;
         private MoveSorter moveSorter;
+        private OpeningBook openingBook;
 
         public OldSearcher()
         {
             this.transpositionTable = new TranspositionTable();
             this.evaluator = new Evaluation();
             this.moveSorter = new MoveSorter();
+            this.openingBook = new OpeningBook(openingsFileName);
         }
 
         public Move StartSearch(Board board)
@@ -45,9 +51,19 @@ namespace Chess.Core
             BestMove = BestMoveThisIteration = Move.NullMove;
             BestEval = BestEvalThisIteration = negativeInfinity;
 
+            if (inOpening)
+            {   
+                string StrMove;
+                bool moveFound = openingBook.TryGetMove(board, out StrMove);
+                if (moveFound)
+                    return MoveHelper.StrMoveToMove(board, StrMove);
+                else
+                    inOpening = false;
+            }
+
             IterativeDeepeningSearch();
             
-            UnityEngine.Debug.Log("Main Depth: " + CurrentSearchDepth);
+            UnityEngine.Debug.Log("Old Depth: " + CurrentSearchDepth);
             return BestMove;
         }
 
@@ -82,12 +98,12 @@ namespace Chess.Core
             }
 
             if (CurrentSearchDepth > 0) {
-                // Draw by repetition or FiftyMoveRule, return score for draw (0)
-                if (board.CurrentEndResult == GameResult.EndResult.Repetition || board.CurrentEndResult == GameResult.EndResult.FiftyMoveRule)
+                // Draw by repetition, FiftyMoveRule, or insufficient material return score for draw (0)
+                if (board.CurrentEndResult == GameResult.EndResult.Repetition || board.CurrentEndResult == GameResult.EndResult.FiftyMoveRule ||
+                    board.CurrentEndResult == GameResult.EndResult.InsufficientMaterial)
                     return 0;
             }
             
-
             if (transpositionTable.GetEvaluation(board.CurrentGameState.ZobristHash) != LookUpFailed)
             {
                 Entry entry = transpositionTable.LookUpZobrist(board.CurrentGameState.ZobristHash);
@@ -120,7 +136,8 @@ namespace Chess.Core
             Span<Move> moves = MoveGenerator.GenerateAllMoves(board, false);
 
             // Sort moves
-            moveSorter.Sort(moves, board, BestMove, pliesFromRoot);
+            Move prevBestMove = pliesFromRoot == 0 ? BestMove : transpositionTable.LookUpZobrist(board.CurrentGameState.ZobristHash).bestMove;
+            moveSorter.Sort(moves, board, prevBestMove, pliesFromRoot);
 
             int moveCount = moves.Length;
 

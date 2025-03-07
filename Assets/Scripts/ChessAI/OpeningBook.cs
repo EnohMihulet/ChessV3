@@ -100,8 +100,6 @@ namespace Chess.Core
             fen = fen.Substring(0, fen.LastIndexOf(' '));
             fen = fen.Substring(0, fen.LastIndexOf(' '));
             var bookMoves = GetMovesFromFEN(fen);
-            Debug.Log(fen);
-            Debug.Log(bookMoves.Count);
 
             // Check if there are any moves
             if (bookMoves == null || bookMoves.Count == 0)

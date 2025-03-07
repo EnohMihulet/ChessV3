@@ -150,6 +150,8 @@ namespace Chess.Game
 			// Generate the new board
 			board = new Board();
 
+			gameOver = false;
+
 			if (gameType == GameType.PVP)
 			{
 				NewGame(PlayerType.Human, PlayerType.Human);

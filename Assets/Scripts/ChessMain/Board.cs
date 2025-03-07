@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
-using System.Text.RegularExpressions;
+using static Chess.Core.SQ;
 using UnityEngine;
 
 namespace Chess.Core
@@ -20,6 +19,7 @@ namespace Chess.Core
         public GameState CurrentGameState;
         // Result of the game (in progress, stalemate, black is mated, white is mated, etc.)
         public GameResult.EndResult CurrentEndResult;
+
         public bool IsWhiteToMove => CurrentGameState.ColorToMove == 0 ? true: false;
         public int MoveColor => IsWhiteToMove ? 0 : 8; // Used to create pieces
         public int OpponentColor => IsWhiteToMove ? 8 : 0; // Used to create pieces
@@ -35,6 +35,9 @@ namespace Chess.Core
         public List<int> CapturedPieces;
         private Stack<GameState> GameStateHistory = new Stack<GameState>(); // Allows for easy make/unmake of moves
 
+        // Piece lists
+        public PieceList[] AllPieces;
+
         // Bitboards
         public ulong[] AllBitBoards; // Indexed by piece type
 
@@ -47,7 +50,9 @@ namespace Chess.Core
 
 
         public void MovePiece(int oldSquare, int newSquare) 
-        {
+        {   
+            AllPieces[Chessboard[oldSquare]].MovePiece(oldSquare, newSquare);
+
             Chessboard[newSquare] = Chessboard[oldSquare];
             Chessboard[oldSquare] = Piece.None;
             
@@ -78,6 +83,7 @@ namespace Chess.Core
 			int newEnPassantFile = -1;
             ulong newZobristHash = CurrentGameState.ZobristHash;
             int newHalfmoveClock = CurrentGameState.HalfmoveClock + 1;
+
             // Reset halfmove clock
             newHalfmoveClock = movedPieceType == Piece.Pawn ? 0 : newHalfmoveClock;
 
@@ -96,6 +102,8 @@ namespace Chess.Core
                     captureSquare = targetSquare + (IsWhiteToMove ? -8 : 8);
                     Chessboard[captureSquare] = Piece.None;
                 }
+                // Update Piece Lists
+                AllPieces[capturedPiece].RemovePiece(captureSquare);
 
                 // Update zobrist hash
                 newZobristHash ^= Zobrist.PieceSquareArray[capturedPiece, captureSquare]; // Remove captured piece position
@@ -103,6 +111,7 @@ namespace Chess.Core
                 // Add captured piece to captured pieces list
                 if (recordMove)
                     CapturedPieces.Add(capturedPiece);
+                
             }
             // KING MOVE
             if (movedPieceType == Piece.King) 
@@ -113,7 +122,7 @@ namespace Chess.Core
                 // Handle castling
                 if (isCastling)
                 {
-                    bool isKingSideCastle = targetSquare == BoardHelper.g1 || targetSquare == BoardHelper.g8;
+                    bool isKingSideCastle = targetSquare == g1 || targetSquare == g8;
                     int RookStartSquare = isKingSideCastle ? targetSquare + 1 : targetSquare - 2;
                     int RookTargetSquare = isKingSideCastle ? targetSquare - 1 : targetSquare  + 1;
 
@@ -140,10 +149,14 @@ namespace Chess.Core
             // PROMOTION
             else if (isPromotion)
             {
-               int promotionType =  move.PromotionPieceType;
-               int promotionPiece = promotionType | MoveColor;
+                int promotionType =  move.PromotionPieceType;
+                int promotionPiece = promotionType | MoveColor;
 
-               Chessboard[targetSquare] = promotionPiece;
+                // Update piece lists
+                AllPieces[movedPiece].RemovePiece(targetSquare);
+                AllPieces[promotionPiece].AddPiece(targetSquare);
+
+                Chessboard[targetSquare] = promotionPiece;
             }
 
             // Update new game state variables
@@ -154,13 +167,13 @@ namespace Chess.Core
 			if (prevCastlingRights != 0)
 			{
 				// Any piece moving to/from rook square removes castling right for that side
-				if (targetSquare == BoardHelper.h1 || startSquare == BoardHelper.h1)
+				if (targetSquare == h1 || startSquare == h1)
 					newCastlingRights &= GameState.ClearWhiteKingsideMask;
-				else if (targetSquare == BoardHelper.a1 || startSquare == BoardHelper.a1)
+				else if (targetSquare == a1 || startSquare == a1)
 					newCastlingRights &= GameState.ClearWhiteQueensideMask;
-				if (targetSquare == BoardHelper.h8 || startSquare == BoardHelper.h8)
+				if (targetSquare == h8 || startSquare == h8)
 					newCastlingRights &= GameState.ClearBlackKingsideMask;
-				else if (targetSquare == BoardHelper.a8 || startSquare == BoardHelper.a8)
+				else if (targetSquare == a8 || startSquare == a8)
 					newCastlingRights &= GameState.ClearBlackQueensideMask;
 			}
 
@@ -218,7 +231,14 @@ namespace Chess.Core
 
             // PROMOTION
             if (wasPromotion)
+            {
+                // Undo promotion in piece lists
+                AllPieces[Chessboard[movedTo]].RemovePiece(movedTo);
+                AllPieces[movedPiece].AddPiece(movedTo);
+
                 Chessboard[movedTo] = Piece.MakePiece(Piece.Pawn, MoveColor);
+            }
+                
 
             MovePiece(movedTo, movedFrom);
 
@@ -230,6 +250,8 @@ namespace Chess.Core
                 
                 if (wasEnPassant)
                     capturedSquare = movedTo + (IsWhiteToMove ? -8 : 8);
+
+                AllPieces[capturedPiece].AddPiece(capturedSquare);
 
                 Chessboard[capturedSquare] = capturedPiece;
 
@@ -244,7 +266,7 @@ namespace Chess.Core
                 // Undo castling
                 if (wasCastling)
                 {
-                    bool isKingSideCastle = movedTo == BoardHelper.g1 || movedTo == BoardHelper.g8;
+                    bool isKingSideCastle = movedTo == g1 || movedTo == g8;
                     int rookStartSquare = isKingSideCastle ? movedTo + 1 : movedTo - 2;
                     int rookTargetSquare = isKingSideCastle ? movedTo - 1 : movedTo + 1;
 
@@ -312,6 +334,8 @@ namespace Chess.Core
 					{
 						Kings[colourIndex] = squareIndex;
 					}
+
+                    AllPieces[piece].AddPiece(squareIndex);
 				}
 			}
 
@@ -346,6 +370,27 @@ namespace Chess.Core
 			GameStateHistory = new Stack<GameState>(capacity: 64);
             CapturedPieces = new List<int>(capacity: 32);
             AllBitBoards = new ulong[Piece.BlackKing + 1];
-		}
+
+            AllPieces = new PieceList[15];
+
+            // White Pieces
+            AllPieces[1] = new PieceList(8);
+            AllPieces[2] = new PieceList(10);
+            AllPieces[3] = new PieceList(10);
+            AllPieces[4] = new PieceList(10);
+            AllPieces[5] = new PieceList(9);
+            AllPieces[6] = new PieceList(1);
+            // Black Pieces
+            AllPieces[9] = new PieceList(8);
+            AllPieces[10] = new PieceList(10);
+            AllPieces[11] = new PieceList(10);
+            AllPieces[12] = new PieceList(10);
+            AllPieces[13] = new PieceList(9);
+            AllPieces[14] = new PieceList(1);
+
+            AllPieces[0] = new PieceList(0);
+            AllPieces[7] = new PieceList(0);
+            AllPieces[8] = new PieceList(0);
+        }
     }
 }

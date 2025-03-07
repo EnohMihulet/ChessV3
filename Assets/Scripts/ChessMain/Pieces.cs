@@ -114,6 +114,14 @@ namespace Chess.Core
                 return false;
             return PieceColor(Piece1) == PieceColor(Piece2) ? false : true;
         }
+
+        public static bool IsPiece(Board board, int color, int pieceType, int square)
+        {
+            int piece = MakePiece(pieceType, color);
+            if (piece == board.Chessboard[square])
+                return true;
+            return false;
+        }
     }
 }
 

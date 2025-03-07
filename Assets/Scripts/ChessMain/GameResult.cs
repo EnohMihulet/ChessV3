@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Linq;
 using UnityEditor.Hardware;
+using UnityEngine;
 
 namespace Chess.Core
 {
@@ -66,6 +67,10 @@ namespace Chess.Core
                 if (!board.IsKingInCheck(board, color))
                     return true;
             }
+            else
+            {
+                return !IsSufficientMaterial(board);
+            }
             
             // REPETITION
             return IsDrawByRepetition(board);
@@ -88,6 +93,11 @@ namespace Chess.Core
                     return color == 0 ? EndResult.WhiteIsMated : EndResult.BlackIsMated;
                 }
                 return  EndResult.Stalemate;
+            }
+            else
+            {
+                if (!IsSufficientMaterial(board))
+                    return EndResult.InsufficientMaterial;
             }
 
             if (IsDrawByRepetition(board))
@@ -134,6 +144,36 @@ namespace Chess.Core
             return false;
         }
 
-        // ADD FUNCTION TO CHECK FOR SUFFICIENT MATERIAL
+        // Checks for sufficient material
+        public static bool IsSufficientMaterial(Board board)
+        {
+            // No pawns on the board
+            if (board.AllPieces[1].Count == 0 && board.AllPieces[9].Count == 0)
+            {   
+                // At least one queen on the board
+                if (board.AllPieces[5].Count != 0 || board.AllPieces[13].Count != 0)
+                    return true;
+                // At least one rook on the board
+                if (board.AllPieces[4].Count != 0 || board.AllPieces[12].Count != 0)
+                    return true;
+
+                int whiteKnight = board.AllPieces[2].Count;
+                int blackKnight = board.AllPieces[10].Count;
+                int whiteBishop = board.AllPieces[3].Count;
+                int blackBishop = board.AllPieces[11].Count;
+                // Check the double knight and no bishop endgame
+                if (whiteBishop == 0 && blackBishop == 0)
+                {
+                    // No bishops and one side has two knight and the other has zero
+                    if ((whiteKnight <= 2 && blackKnight == 0) || (blackKnight <= 2 && whiteKnight == 0))
+                        return false;
+                }
+                // Both sides have at most a bishop or a knight
+                if (whiteKnight + whiteBishop <= 1 && blackKnight + blackBishop <= 1)
+                    return false;
+                return true;
+            }
+            return true;
+        }
     }
 }

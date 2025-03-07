@@ -1,10 +1,7 @@
+using static Chess.Core.SQ;
 using System;
-using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using Unity.Mathematics;
-using UnityEngine;
-using UnityEngine.Analytics;
 
 namespace Chess.Core
 {
@@ -231,7 +228,7 @@ namespace Chess.Core
 
         public static void GenerateKnightMoves(int square, Board board, Span<Move> moves, bool onlyCaptures, ref int moveCount)
         {   
-            int directionCount = BoardHelper.KnightCoorDirections.Count();
+            int directionCount = BoardHelper.KnightCoorDirections.Length;
 
             // Loop through each possible knight move offset
             for (int index = 0; index < directionCount; index++)
@@ -267,7 +264,7 @@ namespace Chess.Core
 
         public static void GenerateBishopMoves(int square, Board board, Span<Move> moves, bool onlyCaptures, ref int moveCount)
         {
-            int directionCount = BoardHelper.DiagonalSquareDirections.Count();
+            int directionCount = BoardHelper.DiagonalSquareDirections.Length;
 
             // Follow each diagonal until target square is out of bounds, an enemy piece (capture), or ally piece
             for (int index = 0; index < directionCount; index++)
@@ -311,7 +308,7 @@ namespace Chess.Core
 
         public static void GenerateRookMoves(int square, Board board, Span<Move> moves, bool onlyCaptures, ref int moveCount)
         {
-            int directionCount = BoardHelper.StraightSquareDirections.Count();
+            int directionCount = BoardHelper.StraightSquareDirections.Length;
 
             // Follow each rank/row until target square is out of bounds, an enemy piece (capture), or ally piece
             for (int index = 0; index < directionCount; index++)
@@ -357,7 +354,7 @@ namespace Chess.Core
         public static void GenerateQueenMoves(int square, Board board, Span<Move> moves, bool onlyCaptures, ref int moveCount)
         {
             int[] queenSquareDirections = BoardHelper.StraightSquareDirections.Concat(BoardHelper.DiagonalSquareDirections).ToArray();
-            int directionCount = queenSquareDirections.Count();
+            int directionCount = queenSquareDirections.Length;
             // Follow each rank/row until target square is out of bounds, an enemy piece (capture), or ally piece
             for (int index = 0; index < directionCount; index++)
             {
@@ -411,7 +408,7 @@ namespace Chess.Core
         public static void GenerateKingMoves(int square, Board board, Span<Move> moves, bool onlyCaptures, ref int moveCount)
         {
             int[] kingSquareDirections = BoardHelper.StraightSquareDirections.Concat(BoardHelper.DiagonalSquareDirections).ToArray();
-            int directionCount = kingSquareDirections.Count();
+            int directionCount = kingSquareDirections.Length;
 
             int king = board.Chessboard[square];
 
@@ -551,7 +548,7 @@ namespace Chess.Core
                         continue;
 
                     int targetSquare = move.TargetSquare;
-                    bool isKingSideCastle = targetSquare == BoardHelper.g1 || targetSquare == BoardHelper.g8;
+                    bool isKingSideCastle = targetSquare == g1 || targetSquare == g8;
 
                     // Cannot castle if the squares the rook and king will be on are under attack
                     if (isKingSideCastle)
@@ -588,6 +585,54 @@ namespace Chess.Core
             }
             return legalMoveCount;
         }
+
+
+        static public bool IsMoveLegal(Board board, Move move)
+        {
+            int color = board.CurrentGameState.ColorToMove;
+
+            if (move.IsCastling)
+            {
+                // Cannot castle if king is currently in check
+                bool isKingInCheckNow = board.IsKingInCheck(board, color);
+                if (isKingInCheckNow)
+                    return false;
+
+                int targetSquare = move.TargetSquare;
+                bool isKingSideCastle = targetSquare == g1 || targetSquare == g8;
+
+                // Cannot castle if the squares the rook and king will be on are under attack
+                if (isKingSideCastle)
+                {
+                    int square1 = (color == 0) ? 5 : 61;
+                    int square2 = (color == 0) ? 6 : 62;
+                    if (IsSquareUnderAttack(board, square1, color) || IsSquareUnderAttack(board, square2, color))
+                        return false;
+                }
+                else {
+                    int square1 = (color == 0) ? 2 : 58;
+                    int square2 = (color == 0) ? 3 : 59;
+                    if (IsSquareUnderAttack(board, square1, color) || IsSquareUnderAttack(board, square2, color))
+                        return false;
+                }
+
+                // Castling is legal
+                return true;
+            }
+
+            // If the king is in check after the move is made, then the move is not legal
+            board.MakeMove(move);
+            bool isKingInCheck = board.IsKingInCheck(board, color);
+            board.UnMakeMove(move);
+
+            if (!isKingInCheck)
+            {   
+                return true;
+            }
+
+            return false;
+        }
+
 
         // Checks if an enemy piece is on a square that attacks the given square
         public static bool IsSquareUnderAttack(Board board, int square, int colorToMove)
